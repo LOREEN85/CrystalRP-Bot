@@ -154,7 +154,7 @@ class ModalDowodu(discord.ui.Modal, title="Wniosek o Dowód Osobisty"):
         )
         embed.add_field(name="Imię i Nazwisko", value=self.imie_nazw.value, inline=False)
         embed.add_field(name="Data Urodzenia", value=self.data_urodzenia.value, inline=True)
-        embed.add_field(name="Pochodzenie", value=self.pochodzenie.value, inline=True)
+        embed.add_field(name="Obywatelstwo", value=self.obywatelstwo.value, inline=True)
         embed.add_field(name="Płeć", value=self.plec.value, inline=True)
         embed.add_field(name="Nick Roblox", value=self.roblox_nick.value, inline=False)
         
