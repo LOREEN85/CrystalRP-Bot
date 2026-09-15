@@ -143,7 +143,7 @@ async def status_podan(interaction: discord.Interaction):
 class ModalDowodu(discord.ui.Modal, title="Wniosek o Dowód Osobisty"):
     imie_nazw = discord.ui.TextInput(label="Imię i Nazwisko", placeholder="np. Jan Kowalski", required=True)
     data_urodzenia = discord.ui.TextInput(label="Data urodzenia", placeholder="np. 12.05.2000", required=True)
-   obywatelstwo = discord.ui.TextInput(
+    obywatelstwo = discord.ui.TextInput(
     label="Obywatelstwo",
     placeholder="np. Polskie",
     required=True 
