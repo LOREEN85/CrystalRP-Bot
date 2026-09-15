@@ -240,68 +240,76 @@ async def cmd_112(interaction: discord.Interaction):
 import discord
 from discord import app_commands
 
-# Zmień tę zmienną na ID roli zarządu, która może akceptować ryby
-ZARZAD_ROLE_ID = 123456789012345678  # <-- Wpisz tutaj ID roli zarządu
+ZARZAD_ROLE_ID = 123456789012345678  # <-- Pamiętaj o wpisaniu ID roli zarządu
 
 class RybyModal(discord.ui.Modal, title="🐟 Sprzedaż Ryb — ER:LC"):
     kwota = discord.ui.TextInput(
-        label="Kwota zarobku (zł / $)",
-        placeholder="np. 575",
+        label="Kwota z gry (np. 500)",
+        placeholder="Wpisz kwotę z gry...",
         style=discord.TextStyle.short,
         required=True
     )
     zdjecie_info = discord.ui.TextInput(
         label="Link do screena z datą i godziną",
-        placeholder="Wklej link do zdjęcia (np. z Discorda lub Medal.tv)",
+        placeholder="Wklej link do zdjęcia",
         style=discord.TextStyle.short,
         required=True
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Tworzymy widok z przyciskami Akceptuj / Odrzuć dla zarządu
+        # Przeliczamy 50% z podanej kwoty
+        try:
+            raw_kwota = float(self.kwota.value.replace(",", "."))
+            payout = raw_kwota * 0.5
+            # Jeśli wynik nie ma części dziesiętnej, zróbmy z niego liczbę całkowitą dla ładnego wyglądu
+            if payout.is_integer():
+                payout = int(payout)
+            if raw_kwota.is_integer():
+                raw_kwota = int(raw_kwota)
+        except ValueError:
+            await interaction.response.send_message("❌ Podana kwota musi być liczbą (np. 500)!", ephemeral=True)
+            return
+
         view = RybyView()
 
         embed = discord.Embed(
             title="🐟 Nowa Oferta — Rybki",
             color=discord.Color.blue()
         )
-        embed.add_field(name="💰 Cena", value=f"{self.kwota.value} zł", inline=True)
+        embed.add_field(name="💰 Zgłoszona kwota", value=f"{raw_kwota} zł", inline=True)
+        embed.add_field(name="💸 Do wypłaty (50%)", value=f"{payout} zł", inline=True)
         embed.add_field(name="🆔 ID DC", value=str(interaction.user.id), inline=True)
         embed.add_field(name="👤 Sprzedający", value=interaction.user.mention, inline=False)
         embed.add_field(name="📸 Zdjęcie / Dowód", value=self.zdjecie_info.value, inline=False)
         
         embed.set_footer(text="System Ryb • ER:LC")
 
-        # Wysyłamy embed na kanał z przyciskami
         await interaction.channel.send(embed=embed, view=view)
         await interaction.response.send_message("✅ Twoja oferta ryb została wysłana do akceptacji przez zarząd!", ephemeral=True)
 
 class RybyView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None) # Przycisk nie wygasa
+        super().__init__(timeout=None)
 
-    @discord.ui.button(label="Nadaj Kasę", style=discord.ButtonStyle.green, emoji="💸")
+    @discord.ui.button(label="Nadaj Kasę (50%)", style=discord.ButtonStyle.green, emoji="💸")
     async def nadaj_kase(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Sprawdzamy czy użytkownik ma rolę zarządu
         role = interaction.guild.get_role(ZARZAD_ROLE_ID)
         if not role or role not in interaction.user.roles:
             await interaction.response.send_message("❌ Nie masz uprawnień (roli zarządu), aby to zatwierdzić!", ephemeral=True)
             return
 
-        # Wyłączamy przyciski po kliknięciu
         for child in self.children:
             child.disabled = True
 
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
-        embed.set_footer(text=f"Zatwierdzone przez {interaction.user.display_name}")
+        embed.set_footer(text=f"Zatwierdzone i wypłacone przez {interaction.user.display_name}")
 
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"✅ Oferta zatwierdzona przez {interaction.user.mention}!", ephemeral=False)
 
     @discord.ui.button(label="Odrzuć", style=discord.ButtonStyle.red, emoji="✖️")
     async def odrzuc(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Sprawdzamy czy użytkownik ma rolę zarządu
         role = interaction.guild.get_role(ZARZAD_ROLE_ID)
         if not role or role not in interaction.user.roles:
             await interaction.response.send_message("❌ Nie masz uprawnień (roli zarządu), aby to odrzucić!", ephemeral=True)
@@ -317,8 +325,7 @@ class RybyView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"❌ Oferta została odrzucona.", ephemeral=False)
 
-# Komenda /ryby wywołująca formularz
-@bot.tree.command(name="ryby", description="Zgłoś złowione ryby do wyceny i wypłaty")
+@bot.tree.command(name="ryby", description="Zgłoś złowione ryby do wyceny i wypłaty 50%")
 async def cmd_ryby(interaction: discord.Interaction):
     await interaction.response.send_modal(RybyModal())
 
