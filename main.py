@@ -170,6 +170,70 @@ class ModalDowodu(discord.ui.Modal, title="Wniosek o Dowód Osobisty"):
 async def dowod(interaction: discord.Interaction):
     await interaction.response.send_modal(ModalDowodu())
 
+
+# ======================================================
+# 6. ZGŁOSZENIA 112
+# ======================================================
+
+class Zgłoszenie112Modal(discord.ui.Modal, title="🚨 Nowe zgłoszenie — 112"):
+    lokalizacja = discord.ui.TextInput(
+        label="Lokalizacje",
+        placeholder="np. Los Santos, Rockford Hills",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    co_sie_stalo = discord.ui.TextInput(
+        label="Co się stało?",
+        placeholder="Opisz krótko zdarzenie...",
+        style=discord.TextStyle.paragraph,
+        required=True
+    )
+    ilu_rannych = discord.ui.TextInput(
+        label="Ilu rannych?",
+        placeholder="np. 2",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    wymaga_broni = discord.ui.TextInput(
+        label="Wymaga broni? (Tak/Nie)",
+        placeholder="np. Tak / Nie",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    dodatkowe_info = discord.ui.TextInput(
+        label="Dodatkowe informacje",
+        placeholder="Brak lub inne szczegóły...",
+        style=discord.TextStyle.paragraph,
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Tworzenie Embeda zgłoszenia (dokładnie jak na Twoim screenie)
+        embed = discord.Embed(
+            title="🚨 Nowe zgłoszenie — 112",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="👤 Dzwoniący", value=interaction.user.mention, inline=False)
+        embed.add_field(name="📍 Lokalizacja", value=self.lokalizacja.value, inline=False)
+        embed.add_field(name="📋 Co się stało", value=self.co_sie_stalo.value, inline=False)
+        embed.add_field(name="🩹 Ilu rannych", value=self.ilu_rannych.value, inline=True)
+        embed.add_field(name="🔫 Wymaga broni?", value=self.wymaga_broni.value, inline=True)
+        embed.add_field(name="ℹ️ Dodatkowe informacje", value=self.dodatkowe_info.value if self.dodatkowe_info.value else "Brak", inline=False)
+        
+        embed.set_footer(text="System 112 • CrystalRP")
+
+        # Wysyłanie embeda na ten sam kanał (lub możesz podmienić ID kanału dyspozytorni)
+        await interaction.channel.send(embed=embed)
+        
+        # Informacja zwrotna dla gracza, że zgłoszenie zostało wysłane
+        await interaction.response.send_message("✅ Twoje zgłoszenie 112 zostało przyjęte i przekazane służbom!", ephemeral=True)
+
+# Komenda /112 wywołująca formularz
+@bot.tree.command(name="112", description="Zgłoś nagły przypadek do służb ratunkowych")
+async def cmd_112(interaction: discord.Interaction):
+    await interaction.response.send_modal(Zgłoszenie112Modal())
+
+
 # ==========================================
 # URUCHOMIENIE BOTA
 # ==========================================
