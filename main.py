@@ -141,8 +141,9 @@ async def status_podan(interaction: discord.Interaction):
 # SYSTEM DOWODÓW OSOBISTYCH
 # ==========================================
 
-# Słownik do trzymania dowodów (w pamięci bota)
-# W przyszłości można to podpiąć pod bazę danych, na razie działa na sesję
+import aiohttp # Upewnij się, że masz tę bibliotekę (zazwyczaj jest w standardzie discord.py)
+
+# Słownik do trzymania dowodów
 USER_DOWODY = {}
 
 class DowodModal(discord.ui.Modal, title="🪪 Wniosek o dowód osobisty"):
@@ -152,40 +153,71 @@ class DowodModal(discord.ui.Modal, title="🪪 Wniosek o dowód osobisty"):
         style=discord.TextStyle.short,
         required=True
     )
-    wiek = discord.ui.TextInput(
-        label="Wiek",
-        placeholder="np. 25",
+    data_urodzenia = discord.ui.TextInput(
+        label="Data Urodzenia",
+        placeholder="np. 12.05.1998",
         style=discord.TextStyle.short,
         required=True
     )
     obywatelstwo = discord.ui.TextInput(
         label="Obywatelstwo",
-        placeholder="np. Polskie / USA",
+        placeholder="np. Polskie",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    roblox_nick = discord.ui.TextInput(
+        label="Nick z Roblox",
+        placeholder="Twój exact nick z Roblox",
         style=discord.TextStyle.short,
         required=True
     )
 
     async def on_submit(self, interaction: discord.Interaction):
         user_id = interaction.user.id
-        
-        # Zapisujemy dane dowodu użytkownika
+        nick = self.roblox_nick.value.strip()
+
+        # Pobieranie awataru z Roblox API
+        avatar_url = None
+        async with aiohttp.ClientSession() as session:
+            # 1. Pobieramy ID użytkownika z Roblox na podstawie nicku
+            url_id = f"https://users.roblox.com/v1/users/search?keyword={nick}&limit=1"
+            async with session.get(url_id) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("data"):
+                        roblox_id = data["data"][0]["id"]
+                        
+                        # 2. Pobieramy link do pełnego renderu 3D (bust/headshot lub pełna sylwetka)
+                        url_avatar = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={roblox_id}&size=420x420&format=Png&isCircular=false"
+                        async with session.get(url_avatar) as av_resp:
+                            if av_resp.status == 200:
+                                av_data = await av_resp.json()
+                                if av_data.get("data"):
+                                    avatar_url = av_data["data"][0]["imageUrl"]
+
+        # Zapisujemy dane dowodu
         USER_DOWODY[user_id] = {
             "imie": self.imie_nazw.value,
-            "wiek": self.wiek.value,
+            "data_urodzenia": self.data_urodzenia.value,
             "obywatelstwo": self.obywatelstwo.value,
-            "status": "Aktywny"
+            "roblox_nick": nick,
+            "avatar_url": avatar_url
         }
 
         embed = discord.Embed(
             title="🪪 Sukces — Wyrobiono dowód",
-            description="Twój dowód osobisty został pomyślnie wyrobiony i zapisany w systemi!",
+            description="Twój dowód osobisty został pomyślnie wyrobiony!",
             color=discord.Color.green()
         )
         embed.add_field(name="Imię i Nazwisko", value=self.imie_nazw.value, inline=True)
-        embed.add_field(name="Wiek", value=self.wiek.value, inline=True)
+        embed.add_field(name="Data Urodzenia", value=self.data_urodzenia.value, inline=True)
         embed.add_field(name="Obywatelstwo", value=self.obywatelstwo.value, inline=True)
-        embed.set_footer(text="System Obywatelski • CrystalRP")
+        embed.add_field(name="Nick Roblox", value=nick, inline=False)
+        
+        if avatar_url:
+            embed.set_thumbnail(url=avatar_url)
 
+        embed.set_footer(text="System Obywatelski • CrystalRP")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class DowodPanelView(discord.ui.View):
@@ -195,7 +227,7 @@ class DowodPanelView(discord.ui.View):
     @discord.ui.button(label="Wyrób dowód", style=discord.ButtonStyle.green, emoji="📝")
     async def wyrob_dowod(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id in USER_DOWODY:
-            await interaction.response.send_message("⚠️ Masz już wyrobiony dowód! Możesz go podejrzeć komendą lub przyciskiem.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Masz już wyrobiony dowód!", ephemeral=True)
             return
         await interaction.response.send_modal(DowodModal())
 
@@ -203,7 +235,7 @@ class DowodPanelView(discord.ui.View):
     async def pokaz_dowod(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = interaction.user.id
         if user_id not in USER_DOWODY:
-            await interaction.response.send_message("❌ Nie masz jeszcze wyrobionego dowodu! Kliknij najpierw **Wyrób dowód**.", ephemeral=True)
+            await interaction.response.send_message("❌ Nie masz jeszcze wyrobionego dowodu!", ephemeral=True)
             return
 
         data = USER_DOWODY[user_id]
@@ -211,13 +243,17 @@ class DowodPanelView(discord.ui.View):
             title=f"🪪 Dowód Osobisty — {data['imie']}",
             color=discord.Color.gold()
         )
-        embed.add_field(name="👤 Właściciel", value=interaction.user.mention, inline=False)
+        embed.add_field(name="👤 Właściciel Discord", value=interaction.user.mention, inline=False)
         embed.add_field(name="📛 Imię i Nazwisko", value=data['imie'], inline=True)
-        embed.add_field(name="🎂 Wiek", value=data['wiek'], inline=True)
+        embed.add_field(name="📅 Data Urodzenia", value=data['data_urodzenia'], inline=True)
         embed.add_field(name="🌍 Obywatelstwo", value=data['obywatelstwo'], inline=True)
-        embed.set_footer(text="CrystalRP • Oficjalny Dokument Tożsamości")
+        embed.add_field(name="🎮 Nick Roblox", value=data['roblox_nick'], inline=False)
+        
+        # Jeśli pobrało skin, ustawiamy go jako miniaturkę w embedzie
+        if data.get('avatar_url'):
+            embed.set_thumbnail(url=data['avatar_url'])
 
-        # Wysyłamy widoczny dla wszystkich dowód (np. na kanale RP)
+        embed.set_footer(text="CrystalRP • Oficjalny Dokument Tożsamości")
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
     @discord.ui.button(label="Usuń dowód", style=discord.ButtonStyle.red, emoji="🗑️")
@@ -228,13 +264,13 @@ class DowodPanelView(discord.ui.View):
             return
 
         del USER_DOWODY[user_id]
-        await interaction.response.send_message("🗑️ Twój dowód osobisty został pomyślnie usunięty z systemu.", ephemeral=True)
+        await interaction.response.send_message("🗑️ Twój dowód osobisty został usunięty.", ephemeral=True)
 
 @bot.tree.command(name="dowod", description="Otwórz panel zarządzania dowodem osobistym")
 async def cmd_dowod(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🪪 Panel Dowodu Osobistego",
-        description="Wybierz odpowiednią opcję poniżej, aby wyrobić, pokazać lub usunąć swój dokument tożsamości.",
+        description="Wybierz opcję poniżej, aby zarządzać swoim dokumentem tożsamości.",
         color=discord.Color.blue()
     )
     view = DowodPanelView()
