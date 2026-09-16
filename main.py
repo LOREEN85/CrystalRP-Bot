@@ -436,9 +436,8 @@ async def cmd_ryby(interaction: discord.Interaction):
 
 
 # ==========================================
-# 8. REJESTRACJA POJAZDU
+# 2. SYSTEM REJESTRACJI POJAZDÓW
 # ==========================================
-
 
 class RejestracjaModal(discord.ui.Modal, title="🚗 Rejestracja Pojazdu — e-Urząd"):
     marka_model = discord.ui.TextInput(
@@ -478,9 +477,8 @@ class RejestracjaModal(discord.ui.Modal, title="🚗 Rejestracja Pojazdu — e-U
         if user_id not in USER_POJAZDY_LISTA:
             USER_POJAZDY_LISTA[user_id] = []
 
-        # SPRAWDZENIE LIMITU (Maksymalnie 2 pojazdy)
         if len(USER_POJAZDY_LISTA[user_id]) >= 2:
-            await interaction.response.send_message("❌ Osiągnąłeś limit! Możesz posiadać maksymalnie **2 zarejestrowane pojazdy**. Usuń jeden z nich, aby zarejestrować nowy.", ephemeral=True)
+            await interaction.response.send_message("❌ Osiągnąłeś limit! Możesz posiadać maksymalnie **2 zarejestrowane pojazdy**.", ephemeral=True)
             return
 
         nowy_pojazd = {
@@ -506,6 +504,96 @@ class RejestracjaModal(discord.ui.Modal, title="🚗 Rejestracja Pojazdu — e-U
         embed.set_footer(text="CrystalRP • e-Urząd Miejski")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class UsunPojazdSelect(discord.ui.Select):
+    def __init__(self, pojazdy):
+        options = []
+        for index, auto in enumerate(pojazdy):
+            options.append(
+                discord.SelectOption(
+                    label=f"Pojazd #{index+1}: {auto['marka']}",
+                    description=f"Tablica: {auto['tablica']}",
+                    value=str(index)
+                )
+            )
+        super().__init__(placeholder="Wybierz pojazd do usunięcia...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        wybrany_index = int(self.values[0])
+
+        if user_id in USER_POJAZDY_LISTA and len(USER_POJAZDY_LISTA[user_id]) > wybrany_index:
+            usuniete = USER_POJAZDY_LISTA[user_id].pop(wybrany_index)
+            await interaction.response.send_message(f"🗑️ Pomyślnie wyrejestrowano pojazd: **{usuniete['marka']}** ({usuniete['tablica']}).", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Wystąpił błąd lub pojazd nie istnieje.", ephemeral=True)
+
+
+class UsunPojazdView(discord.ui.View):
+    def __init__(self, pojazdy):
+        super().__init__(timeout=None)
+        self.add_item(UsunPojazdSelect(pojazdy))
+
+
+class RejestracjaPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Zarejestruj pojazd", style=discord.ButtonStyle.green, emoji="📝")
+    async def zarejestruj(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in USER_POJAZDY_LISTA and len(USER_POJAZDY_LISTA[interaction.user.id]) >= 2:
+            await interaction.response.send_message("❌ Posiadasz już maksymalną liczbę pojazdów (2/2)!", ephemeral=True)
+            return
+        await interaction.response.send_modal(RejestracjaModal())
+
+    @discord.ui.button(label="Pokaż pojazdy", style=discord.ButtonStyle.blurple, emoji="🚘")
+    async def pokaz_pojazdy(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in USER_POJAZDY_LISTA or not USER_POJAZDY_LISTA[user_id]:
+            await interaction.response.send_message("❌ Nie masz jeszcze zarejestrowanych żadnych pojazdów!", ephemeral=True)
+            return
+
+        pojazdy = USER_POJAZDY_LISTA[user_id]
+        await interaction.response.send_message("🚘 **Twoje zarejestrowane pojazdy:**", ephemeral=True)
+        
+        for index, auto in enumerate(pojazdy):
+            embed = discord.Embed(
+                title=f"CrystalRP • Dowód Rejestracyjny Pojazdu",
+                color=discord.Color.dark_embed()
+            )
+            embed.set_author(name=f"Pojazd #{index+1}")
+            embed.add_field(name="Właściciel", value=interaction.user.mention, inline=True)
+            embed.add_field(name="Marka i Model", value=auto['marka'], inline=True)
+            embed.add_field(name="Tablica rejestracyjna", value=auto['tablica'], inline=True)
+            embed.add_field(name="PESEL / ID", value=auto['pesel'], inline=True)
+            embed.add_field(name="Roblox Nick", value=auto['nick'], inline=True)
+            
+            if auto['zdjecie']:
+                embed.set_image(url=auto['zdjecie'])
+                
+            embed.set_footer(text="CrystalRP • e-Urząd Miejski")
+            await interaction.channel.send(embed=embed)
+
+    @discord.ui.button(label="Usuń pojazd", style=discord.ButtonStyle.red, emoji="🗑️")
+    async def usun_pojazd(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in USER_POJAZDY_LISTA or not USER_POJAZDY_LISTA[user_id]:
+            await interaction.response.send_message("❌ Nie masz żadnych pojazdów do usunięcia.", ephemeral=True)
+            return
+
+        view = UsunPojazdView(USER_POJAZDY_LISTA[user_id])
+        await interaction.response.send_message("Wybierz z listy poniżej, który pojazd chcesz wyrejestrować:", view=view, ephemeral=True)
+
+@bot.tree.command(name="rejestracja", description="Otwórz panel e-Urząd do zarządzania pojazdami")
+async def cmd_rejestracja(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🚗 e-Urząd Miejski — Rejestracja Pojazdów",
+        description="Wybierz opcję poniżej, aby zarejestrować nowe auto, wyświetlić swoje pojazdy lub usunąć wybrane auto z bazy.",
+        color=discord.Color.blue()
+    )
+    view = RejestracjaPanelView()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # ==========================================
 # URUCHOMIENIE BOTA
