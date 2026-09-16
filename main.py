@@ -138,38 +138,107 @@ async def status_podan(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# 5. SYSTEM DOWODÓW OSOBISTYCH (MODAL)
+# SYSTEM DOWODÓW OSOBISTYCH
 # ==========================================
-class ModalDowodu(discord.ui.Modal, title="Wniosek o Dowód Osobisty"):
-    imie_nazw = discord.ui.TextInput(label="Imię i Nazwisko", placeholder="np. Jan Kowalski", required=True)
-    data_urodzenia = discord.ui.TextInput(label="Data urodzenia", placeholder="np. 12.05.2000", required=True)
+
+# Słownik do trzymania dowodów (w pamięci bota)
+# W przyszłości można to podpiąć pod bazę danych, na razie działa na sesję
+USER_DOWODY = {}
+
+class DowodModal(discord.ui.Modal, title="🪪 Wniosek o dowód osobisty"):
+    imie_nazw = discord.ui.TextInput(
+        label="Imię i Nazwisko Postaci",
+        placeholder="np. John Doe",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    wiek = discord.ui.TextInput(
+        label="Wiek",
+        placeholder="np. 25",
+        style=discord.TextStyle.short,
+        required=True
+    )
     obywatelstwo = discord.ui.TextInput(
-    label="Obywatelstwo",
-    placeholder="np. Polskie",
-    required=True 
-)
-    plec = discord.ui.TextInput(label="Płeć (K / M)", placeholder="np. M", max_length=3, required=True)
-    roblox_nick = discord.ui.TextInput(label="Nick Roblox", placeholder="Twój nick z gry", required=True)
+        label="Obywatelstwo",
+        placeholder="np. Polskie / USA",
+        style=discord.TextStyle.short,
+        required=True
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        
+        # Zapisujemy dane dowodu użytkownika
+        USER_DOWODY[user_id] = {
+            "imie": self.imie_nazw.value,
+            "wiek": self.wiek.value,
+            "obywatelstwo": self.obywatelstwo.value,
+            "status": "Aktywny"
+        }
+
         embed = discord.Embed(
-            title="🪪 Dowód Osobisty — CrystalRP",
-            color=discord.Color.blue()
+            title="🪪 Sukces — Wyrobiono dowód",
+            description="Twój dowód osobisty został pomyślnie wyrobiony i zapisany w systemi!",
+            color=discord.Color.green()
         )
-        embed.add_field(name="Imię i Nazwisko", value=self.imie_nazw.value, inline=False)
-        embed.add_field(name="Data Urodzenia", value=self.data_urodzenia.value, inline=True)
+        embed.add_field(name="Imię i Nazwisko", value=self.imie_nazw.value, inline=True)
+        embed.add_field(name="Wiek", value=self.wiek.value, inline=True)
         embed.add_field(name="Obywatelstwo", value=self.obywatelstwo.value, inline=True)
-        embed.add_field(name="Płeć", value=self.plec.value, inline=True)
-        embed.add_field(name="Nick Roblox", value=self.roblox_nick.value, inline=False)
-        
-        embed.set_footer(text=f"Właściciel dokumentu: {interaction.user.name}")
-        
+        embed.set_footer(text="System Obywatelski • CrystalRP")
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class DowodPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Wyrób dowód", style=discord.ButtonStyle.green, emoji="📝")
+    async def wyrob_dowod(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in USER_DOWODY:
+            await interaction.response.send_message("⚠️ Masz już wyrobiony dowód! Możesz go podejrzeć komendą lub przyciskiem.", ephemeral=True)
+            return
+        await interaction.response.send_modal(DowodModal())
+
+    @discord.ui.button(label="Pokaż dowód", style=discord.ButtonStyle.blurple, emoji="🪪")
+    async def pokaz_dowod(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in USER_DOWODY:
+            await interaction.response.send_message("❌ Nie masz jeszcze wyrobionego dowodu! Kliknij najpierw **Wyrób dowód**.", ephemeral=True)
+            return
+
+        data = USER_DOWODY[user_id]
+        embed = discord.Embed(
+            title=f"🪪 Dowód Osobisty — {data['imie']}",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="👤 Właściciel", value=interaction.user.mention, inline=False)
+        embed.add_field(name="📛 Imię i Nazwisko", value=data['imie'], inline=True)
+        embed.add_field(name="🎂 Wiek", value=data['wiek'], inline=True)
+        embed.add_field(name="🌍 Obywatelstwo", value=data['obywatelstwo'], inline=True)
+        embed.set_footer(text="CrystalRP • Oficjalny Dokument Tożsamości")
+
+        # Wysyłamy widoczny dla wszystkich dowód (np. na kanale RP)
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-@bot.tree.command(name="dowod", description="Tworzy Twój dowód osobisty IC")
-async def dowod(interaction: discord.Interaction):
-    await interaction.response.send_modal(ModalDowodu())
+    @discord.ui.button(label="Usuń dowód", style=discord.ButtonStyle.red, emoji="🗑️")
+    async def usun_dowod(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in USER_DOWODY:
+            await interaction.response.send_message("❌ Nie masz żadnego dowodu do usunięcia.", ephemeral=True)
+            return
 
+        del USER_DOWODY[user_id]
+        await interaction.response.send_message("🗑️ Twój dowód osobisty został pomyślnie usunięty z systemu.", ephemeral=True)
+
+@bot.tree.command(name="dowod", description="Otwórz panel zarządzania dowodem osobistym")
+async def cmd_dowod(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🪪 Panel Dowodu Osobistego",
+        description="Wybierz odpowiednią opcję poniżej, aby wyrobić, pokazać lub usunąć swój dokument tożsamości.",
+        color=discord.Color.blue()
+    )
+    view = DowodPanelView()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # ======================================================
 # 6. ZGŁOSZENIA 112
