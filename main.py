@@ -434,6 +434,79 @@ class RybyView(discord.ui.View):
 async def cmd_ryby(interaction: discord.Interaction):
     await interaction.response.send_modal(RybyModal())
 
+
+# ==========================================
+# 8. REJESTRACJA POJAZDU
+# ==========================================
+
+
+class RejestracjaModal(discord.ui.Modal, title="🚗 Rejestracja Pojazdu — e-Urząd"):
+    marka_model = discord.ui.TextInput(
+        label="Marka i Model Pojazdu",
+        placeholder="np. Chevrolet Camaro",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    tablica = discord.ui.TextInput(
+        label="Tablica Rejestracyjna",
+        placeholder="np. QLG-198",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    pesel_id = discord.ui.TextInput(
+        label="PESEL / ID",
+        placeholder="np. 564710366",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    roblox_nick = discord.ui.TextInput(
+        label="Nick z Roblox",
+        placeholder="np. CyberTytan3000",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    zdjecie_auto = discord.ui.TextInput(
+        label="Link do zdjęcia pojazdu",
+        placeholder="Wklej link do screena auta",
+        style=discord.TextStyle.short,
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        
+        if user_id not in USER_POJAZDY_LISTA:
+            USER_POJAZDY_LISTA[user_id] = []
+
+        # SPRAWDZENIE LIMITU (Maksymalnie 2 pojazdy)
+        if len(USER_POJAZDY_LISTA[user_id]) >= 2:
+            await interaction.response.send_message("❌ Osiągnąłeś limit! Możesz posiadać maksymalnie **2 zarejestrowane pojazdy**. Usuń jeden z nich, aby zarejestrować nowy.", ephemeral=True)
+            return
+
+        nowy_pojazd = {
+            "marka": self.marka_model.value,
+            "tablica": self.tablica.value,
+            "pesel": self.pesel_id.value,
+            "nick": self.roblox_nick.value,
+            "zdjecie": self.zdjecie_auto.value
+        }
+
+        USER_POJAZDY_LISTA[user_id].append(nowy_pojazd)
+        numer_auta = len(USER_POJAZDY_LISTA[user_id])
+
+        embed = discord.Embed(
+            title=f"🚗 Sukces — Zarejestrowano Pojazd #{numer_auta}",
+            description="Twój pojazd został pomyślnie zarejestrowany w e-Urzędzie Miejskim!",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Marka i Model", value=self.marka_model.value, inline=False)
+        embed.add_field(name="Tablica Rejestracyjna", value=self.tablica.value, inline=True)
+        embed.add_field(name="PESEL / ID", value=self.pesel_id.value, inline=True)
+        embed.set_image(url=self.zdjecie_auto.value)
+        embed.set_footer(text="CrystalRP • e-Urząd Miejski")
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 # ==========================================
 # URUCHOMIENIE BOTA
 # ==========================================
