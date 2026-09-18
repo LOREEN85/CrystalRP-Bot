@@ -436,61 +436,116 @@ async def cmd_ryby(interaction: discord.Interaction):
 
 
 # ==========================================
-# 2. SYSTEM REJESTRACJI POJAZDÓW
+# SYSTEM MANDATÓW KARNYCH
 # ==========================================
 
-class RejestracjaPanelView(discord.ui.View):
+class MandatModal(discord.ui.Modal, title="📄 Wystawianie Mandatu Karnego"):
+    ofiara = discord.ui.TextInput(
+        label="Osoba ukarana (Postać i Discord)",
+        placeholder="np. Mateusz Old Spice (@Nikodem)",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    funkcjonariusz = discord.ui.TextInput(
+        label="Funkcjonariusz wystawiający",
+        placeholder="np. Janek Pietrusiak (@Mów_mi_Morty)",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    kwota = discord.ui.TextInput(
+        label="Kwota mandatu (PLN)",
+        placeholder="np. 1500",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    punkty = discord.ui.TextInput(
+        label="Punkty karne",
+        placeholder="np. 0 lub 6",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    podstawa_prawna = discord.ui.TextInput(
+        label="Podstawa prawna",
+        placeholder="np. art 63 K.W",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    podstawa_faktyczna = discord.ui.TextInput(
+        label="Podstawa faktyczna (Opis)",
+        placeholder="np. Graffiti bez zgody w miejscu publicznym",
+        style=discord.TextStyle.long,
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Generujemy losowy numer mandatu (np. z zakresu 100-999)
+        numer_mandatu = random.randint(100, 999)
+        aktualna_data = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+        embed = discord.Embed(
+            title=f"📄 » MANDAT KARNY #{numer_mandatu}",
+            color=discord.Color.dark_embed()
+        )
+        
+        embed.description = f"**{self.ofiara.value}** otrzymał/a mandat karny."
+        
+        embed.add_field(
+            name="👮 Funkcjonariusz wystawiający", 
+            value=self.funkcjonariusz.value, 
+            inline=False
+        )
+        embed.add_field(
+            name="👤 Osoba ukarana", 
+            value=self.ofiara.value, 
+            inline=True
+        )
+        embed.add_field(
+            name="💰 Kwota mandatu", 
+            value=f"{self.kwota.value} PLN", 
+            inline=True
+        )
+        embed.add_field(
+            name="⚠️ Punkty karne", 
+            value=f"{self.punkty.value} punktów karnych", 
+            inline=False
+        )
+        embed.add_field(
+            name="📜 Podstawa prawna", 
+            value=f"```\n{self.podstawa_prawna.value}\n```", 
+            inline=False
+        )
+        embed.add_field(
+            name="📋 Podstawa faktyczna", 
+            value=f"```\n{self.podstawa_faktyczna.value}\n```", 
+            inline=False
+        )
+        
+        embed.set_footer(text=f"CrystalRP • {aktualna_data}")
+
+        # Wysyłamy mandat publicznie na kanał, żeby każdy widział
+        await interaction.response.send_message(embed=embed)
+
+
+class MandatPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Zarejestruj pojazd", style=discord.ButtonStyle.green, emoji="📝", custom_id="btn_zarejestruj_pojazd")
-    async def zarejestruj(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        if user_id in USER_POJAZDY_LISTA and len(USER_POJAZDY_LISTA[user_id]) >= 2:
-            await interaction.response.send_message("❌ Posiadasz już maksymalną liczbę pojazdów (2/2)!", ephemeral=True)
-            return
-        
-        # Otwieramy modal bezpośrednio
-        modal = RejestracjaModal()
-        await interaction.response.send_modal(modal)
+    @discord.ui.button(label="Wystaw mandat", style=discord.ButtonStyle.danger, emoji="🚨", custom_id="btn_wystaw_mandat")
+    async def wystaw_mandat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Tutaj możesz dodać opcjonalnie zabezpieczenie, czy użytkownik ma odpowiednią rolę policyjną
+        await interaction.response.send_modal(MandatModal())
 
-    @discord.ui.button(label="Pokaż pojazdy", style=discord.ButtonStyle.blurple, emoji="🚘", custom_id="btn_pokaz_pojazdy")
-    async def pokaz_pojazdy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        if user_id not in USER_POJAZDY_LISTA or not USER_POJAZDY_LISTA[user_id]:
-            await interaction.response.send_message("❌ Nie masz jeszcze zarejestrowanych żadnych pojazdów!", ephemeral=True)
-            return
 
-        pojazdy = USER_POJAZDY_LISTA[user_id]
-        await interaction.response.send_message("🚘 **Twoje zarejestrowane pojazdy:**", ephemeral=True)
-        
-        for index, auto in enumerate(pojazdy):
-            embed = discord.Embed(
-                title=f"CrystalRP • Dowód Rejestracyjny Pojazdu",
-                color=discord.Color.dark_embed()
-            )
-            embed.set_author(name=f"Pojazd #{index+1}")
-            embed.add_field(name="Właściciel", value=interaction.user.mention, inline=True)
-            embed.add_field(name="Marka i Model", value=auto['marka'], inline=True)
-            embed.add_field(name="Tablica rejestracyjna", value=auto['tablica'], inline=True)
-            embed.add_field(name="PESEL / ID", value=auto['pesel'], inline=True)
-            embed.add_field(name="Roblox Nick", value=auto['nick'], inline=True)
-            
-            if auto['zdjecie']:
-                embed.set_image(url=auto['zdjecie'])
-                
-            embed.set_footer(text="CrystalRP • e-Urząd Miejski")
-            await interaction.channel.send(embed=embed)
-
-    @discord.ui.button(label="Usuń pojazd", style=discord.ButtonStyle.red, emoji="🗑️", custom_id="btn_usun_pojazd")
-    async def usun_pojazd(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        if user_id not in USER_POJAZDY_LISTA or not USER_POJAZDY_LISTA[user_id]:
-            await interaction.response.send_message("❌ Nie masz żadnych pojazdów do usunięcia.", ephemeral=True)
-            return
-
-        view = UsunPojazdView(USER_POJAZDY_LISTA[user_id])
-        await interaction.response.send_message("Wybierz z listy poniżej, który pojazd chcesz wyrejestrować:", view=view, ephemeral=True)
+@bot.tree.command(name="mandat", description="Otwórz panel do wystawiania mandatów karnych")
+async def cmd_mandat(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🚨 System Mandatów Karnych — Policja",
+        description="Kliknij przycisk poniżej, aby otworzyć formularz i wystawić mandat obywatelowi.",
+        color=discord.Color.red()
+    )
+    view = MandatPanelView()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    
 # ==========================================
 # URUCHOMIENIE BOTA
 # ==========================================
